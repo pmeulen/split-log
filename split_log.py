@@ -146,7 +146,7 @@ def process(input_stream: TextIOWrapper, output_directory: str, input_date_forma
             # Adjust the year if needed
             if not date_includes_year:
                 now = datetime.now()
-                date = date.replace(year=now.year)  # Assume the date is in the current year
+                date=date.replace(year=now.year) # Assume the date is in the current year
                 if date > now:  # If the date is in the future, set the year to the past year
                     date = date.replace(year=now.year - 1)
 
@@ -164,13 +164,11 @@ def process(input_stream: TextIOWrapper, output_directory: str, input_date_forma
             # Write the line to the output file
             if not dry_run:
                 try:
-                    # Write the line to the output file
                     file_handle.write(line.encode('utf-8'))
                 except IOError as e:
                     sys.stderr.write(f"Error writing to output file for date: {date_key}\n")
                     sys.stderr.write(f"Error: {e}\n")
                     return 1
-
         return 0
 
     except Exception as e:  # Does not catch KeyboardInterrupt
@@ -187,7 +185,6 @@ def process(input_stream: TextIOWrapper, output_directory: str, input_date_forma
                 file_handle.close()
         sys.stderr.write("done.\n")
         # Do not return any error codes here, the return code is already set in the try block or the except block
-
 
 # Check if input_date_format parses the year
 def format_includes_year(input_date_format: str) -> bool:
@@ -223,18 +220,17 @@ The date format at the start of each line must have a fixed length and can be sp
 (default: "%s"). Processing stops if a date cannot be parsed.
 
 For each unique date found in the input file, a new output file will be created.  The output files will be named using 
-the specified basename (default: "%s") and the date format provided with the `-p`option (default: "%s").
+the specified basename (default: "%s") and the date format provided with the `-p` option (default: "%s").
 If the output file already exists, an error will be raised.
 
 By default, the output files will be created in the current working directory.  Use the `-d` option to specify a 
 different output directory. This directory must exist and be writable.
 
 The `--dry-run` option allows you to simulate the process of parsing the file without creating or writing to any output 
-files.  The `-z` option compresses the output files using the bzip2 algorithm, this will add the `.bz2` extension to the 
-output files automatically.
+files.  The `-z` option compresses the output files using the gzip or bzip2 algorithm, this will add the `.gz` or `.bz2` 
+extension to the output files automatically.
 
-""" % (default_input_date_format, default_basename, default_output_suffix_example)
-    )
+""" % (default_input_date_format, default_basename, default_output_suffix_example))
 
     parser.add_argument('input', nargs='?', type=argparse.FileType('r'), default=sys.stdin,
                         help='Input file. Defaults to stdin if not provided.')
@@ -242,7 +238,7 @@ output files automatically.
                         help='Output directory for the split log files')
     parser.add_argument('-b', '--basename', dest='basename', type=str,
                         help='Basename for the split log files. Defaults to the input file name or "%s" when not provided.'
-                             % default_basename)
+                        % default_basename)
 
     # Add the -f option to specify the input date format
     input_date_format_help = ('Input date format as used by strptime(). Default: "%s". Example: "%s"'
