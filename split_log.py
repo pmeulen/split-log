@@ -13,31 +13,43 @@ Limitations:
   Use "ulimit -n" to see the current limit and "ulimit -n <number>" to set a new limit.
 - The script will stop when it encounters an error, like a date that cannot be parsed or an output file that already
   exists. You can use the --dry-run option to test for parsing problems or output files that already exist.
+
+Changelog:
+1.1:
+- Added support for gzip compression
 """
 
-__version__ = 1.0
+__version__ = 1.1
 __license__ = "Apache 2.0"
 
 import argparse
 import os
 import sys
 from datetime import datetime
+from enum import Enum, auto
 from io import TextIOWrapper
 from time import strptime, strftime
 
+class Compression(Enum):
+    NONE = auto()
+    GZIP = auto()
+    BZIP = auto()
 
-def create_file(output_file: str, compress: bool, dry_run: bool):
+def create_file(output_file: str, compress: Compression, dry_run: bool):
     """
-    Create the output file in binary mode. Use x mode to ensure a new file is created and an error is raised if the file
-    :param output_file:
-    :param compress: True if the output file should be compressed using bzip2
+    Create the output file in binary mode. Use x mode to ensure a new file is created and an error is returned if the
+    file already exists.
+    :param output_file: Name of the output file to create. ".bz2" will be appended if compress is True
+    :param compress: Compression type to be used for the output file (NONE, GZIP, or BZIP)
     :param dry_run: True if the file should not be created, but only checked if it would be created
     :return: the file handle for the output file. If dry_run is True, the file handle is True
              None if the file could not be created
     """
 
-    if compress:
+    if compress == Compression.BZIP:
         output_file += '.bz2'
+    elif compress == Compression.GZIP:
+        output_file += '.gz'
     sys.stderr.write(f"Creating output file: {output_file}\n")
 
     if dry_run:
@@ -51,10 +63,13 @@ def create_file(output_file: str, compress: bool, dry_run: bool):
     try:
         # Create the output file in binary mode
         # Use x mode to ensure a new file is created and an error is raised if the file already exists
-        if compress:
+        if compress == Compression.BZIP:
             import bz2  # only import bz2 if we need it
             # noinspection PyUnboundLocalVariable
             return bz2.BZ2File(output_file, 'xb')
+        elif compress == Compression.GZIP:
+            import gzip
+            return gzip.GzipFile(output_file, 'xb')
         else:
             return open(output_file, 'xb')
 
@@ -66,7 +81,7 @@ def create_file(output_file: str, compress: bool, dry_run: bool):
 
 def process(input_stream: TextIOWrapper, output_directory: str, input_date_format: str, basename: str,
             output_suffix: str,
-            dry_run: bool, compress) -> int:
+            dry_run: bool, compress: Compression) -> int:
     """
     Process the input stream and write the output to the output stream.
     :param input_stream: the input stream to read the log file from
@@ -75,7 +90,7 @@ def process(input_stream: TextIOWrapper, output_directory: str, input_date_forma
     :param basename: the basename to be used in the log files
     :param output_suffix: the suffix to be used in the log files
     :param dry_run: if True, do not write to output files, only show what files would be created
-    :param compress: if True, compress the output files using bz2
+    :param compress: compression type to be used for the output files (NONE, GZIP, or BZIP)
 
     :return: int 0 on success, 1 on error
     """
@@ -83,13 +98,20 @@ def process(input_stream: TextIOWrapper, output_directory: str, input_date_forma
     if dry_run:
         sys.stderr.write("Dry run mode: no files will be written.\n")
 
-    if compress:
+    if compress == Compression.BZIP:
         sys.stderr.write("Compressing output files using bzip2.\n")
         try:
             import bz2  # only import bz2 if we need it
         except ImportError:
             sys.stderr.write("Error: bzip2 module not found. Please install it.\n")
             sys.stderr.write("E.g. pip install bz2\n")
+            return 1
+    elif compress == Compression.GZIP:
+        sys.stderr.write("Compressing output files using gzip.\n")
+        try:
+            import gzip
+        except ImportError:
+            sys.stderr.write("Error: gzip module not found.\n")
             return 1
 
     # Check if the input_date_format parses the year
@@ -239,8 +261,8 @@ output files automatically.
 
     parser.add_argument('--dry-run', action='store_true', dest='dry_run',
                         help='Do not write to output files, only show what files would be created.')
-    parser.add_argument('-z', '--compress', action='store_true', dest='compress',
-                        help='Compress the output using bzip2.')
+    parser.add_argument('-z', '--compress', choices=['none', 'gzip', 'bzip'], default='none', dest='compress', type=str,
+                        help='Compress output files (none, gzip, or bzip).')
     parser.add_argument('--version', action='version', version='%(prog)s ' + str(__version__),
                         help='Show the version number and exit.')
     parser.add_argument('--show-format-help', action='store_true', dest='show_format_help',
@@ -294,11 +316,18 @@ output files automatically.
     sys.stderr.write('Using output file format: "%s%s"\n' % (args.basename, args.output_suffix))
     sys.stderr.write('Example output file: "%s"\n' % example_output_file)
 
+    compression_map = {
+        'none': Compression.NONE,
+        'gzip': Compression.GZIP,
+        'bzip': Compression.BZIP
+    }
+    compression_type = compression_map[args.compress.lower()]
+
     input_stream = TextIOWrapper(args.input.buffer, encoding='utf-8')
 
     try:
         res = process(input_stream, args.output_dir, args.input_date_format, args.basename, args.output_suffix,
-                      args.dry_run, args.compress)
+                      args.dry_run, compression_type)
         if res != 0:
             sys.stderr.write("Error processing input file.\n")
             sys.exit(1)
