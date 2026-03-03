@@ -17,9 +17,12 @@ Limitations:
 Changelog:
 1.1:
 - Added support for gzip compression
+1.2:
+- Added support for skipping the first N lines of the input file
+- Include the cutoff date in the warning that is shown when the year is not parsed from the date in the input file
 """
 
-__version__ = 1.1
+__version__ = 1.2
 __license__ = "Apache 2.0"
 
 import argparse
@@ -118,9 +121,10 @@ def process(input_stream: TextIOWrapper, output_directory: str, input_date_forma
     now = datetime.now()
     date_includes_year = format_includes_year(input_date_format)
     if not date_includes_year:
+        current_date_formatted = now.strftime(input_date_format)
         sys.stderr.write(f"Warning: The input date format does not include the year:\n")
-        sys.stderr.write(f"  - Dates in the past will be interpreted as being in the current year ({now.year}).\n")
-        sys.stderr.write(f"  - Dates after in the future be interpreted as being in the past year ({now.year - 1}).\n")
+        sys.stderr.write(f"  - Dates in before and including {current_date_formatted} will be interpreted as being in the current year ({now.year}).\n")
+        sys.stderr.write(f"  - Dates after {current_date_formatted} will be interpreted as being in the past year ({now.year - 1}).\n")
 
     # Get the length of the input date format so we can cut it from the start of the lines
     # assume the input date format is always the same length
@@ -259,6 +263,8 @@ extension to the output files automatically.
                         help='Do not write to output files, only show what files would be created.')
     parser.add_argument('-z', '--compress', choices=['none', 'gzip', 'bzip'], default='none', dest='compress', type=str,
                         help='Compress output files (none, gzip, or bzip).')
+    parser.add_argument('-n', '--skip', default=0, type=int, dest='skip',
+                        help='Number of lines to skip at the start of the input file.')
     parser.add_argument('--version', action='version', version='%(prog)s ' + str(__version__),
                         help='Show the version number and exit.')
     parser.add_argument('--show-format-help', action='store_true', dest='show_format_help',
@@ -320,6 +326,37 @@ extension to the output files automatically.
     compression_type = compression_map[args.compress.lower()]
 
     input_stream = TextIOWrapper(args.input.buffer, encoding='utf-8')
+
+    skip_lines = args.skip
+    if skip_lines < 0:
+        sys.stderr.write(f"Error: The number of lines to skip must be a non-negative integer, not {skip_lines}.\n")
+        sys.exit(1)
+    if skip_lines > 0:
+        sys.stderr.write(f"Skipping {skip_lines} line(s) from the beginning of the input file...\n")
+        last_percent = -1
+
+        for i in range(skip_lines):
+            input_stream.readline()
+            if skip_lines > 1000:
+                # Only show progress when > 1000 lines are skipped
+                percent = int((i * 100) / skip_lines)
+                if percent != last_percent:
+                    # New percent reached
+                    if percent % 10 == 0:
+                        # Every 10%, print the label (with a newline before except for 0)
+                        if percent == 0:
+                            sys.stderr.write("0%")
+                            sys.stderr.flush()
+                        else:
+                            sys.stderr.write(f"{percent}%")
+                            sys.stderr.flush()
+                    else:
+                        # Other percent values: print a dot
+                        sys.stderr.write(".")
+                        sys.stderr.flush()
+                    last_percent = percent
+        if skip_lines > 1000:
+            sys.stderr.write("100%\n")
 
     try:
         res = process(input_stream, args.output_dir, args.input_date_format, args.basename, args.output_suffix,
