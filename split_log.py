@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# Copyright (c) 2025,2026, SURF b.v.
+
 """
 Split a log file into multiple files based on the dates at the start at each line.
 For that time when logrotate did not run...
@@ -12,8 +14,8 @@ Limitations:
   descriptors if many output files are created.
   Use "ulimit -n" to see the current limit and "ulimit -n <number>" to set a new limit.
 - The script will stop when it encounters an error, such as an output file that already exists.
-  Lines with dates that cannot be parsed are reported and skipped, and processing then continues with the next line.
-  You can use the --dry-run option to test for parsing problems or output files that already exist.
+  Except for Lines with dates that cannot be parsed. These are reported and skipped, and processing then continues with
+  the next line. You can use the --dry-run option to test for parsing problems or output files that already exist.
 
 Changelog:
 1.1:
@@ -25,7 +27,7 @@ Changelog:
 - Continue processing after encountering a date that cannot be parsed, ignoring the line
 """
 
-__version__ = 1.2
+__version__ = 1.3
 __license__ = "Apache 2.0"
 
 import argparse
