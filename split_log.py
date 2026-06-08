@@ -11,8 +11,9 @@ Limitations:
 - The script keeps the output files open until it has finished processing the input file. You may run out of file
   descriptors if many output files are created.
   Use "ulimit -n" to see the current limit and "ulimit -n <number>" to set a new limit.
-- The script will stop when it encounters an error, like a date that cannot be parsed or an output file that already
-  exists. You can use the --dry-run option to test for parsing problems or output files that already exist.
+- The script will stop when it encounters an error, such as an output file that already exists.
+  Lines with dates that cannot be parsed are reported and skipped, and processing then continues with the next line.
+  You can use the --dry-run option to test for parsing problems or output files that already exist.
 
 Changelog:
 1.1:
@@ -20,6 +21,8 @@ Changelog:
 1.2:
 - Added support for skipping the first N lines of the input file
 - Include the cutoff date in the warning that is shown when the year is not parsed from the date in the input file
+1.3:
+- Continue processing after encountering a date that cannot be parsed, ignoring the line
 """
 
 __version__ = 1.2
@@ -145,7 +148,7 @@ def process(input_stream: TextIOWrapper, output_directory: str, input_date_forma
                 sys.stderr.write(
                     f"Date string \"{date_str}\" could not be parsed using format string \"{input_date_format}\"\n")
                 sys.stderr.write(f"Error: {e}\n")
-                return 1
+                continue
 
             # Adjust the year if needed
             if not date_includes_year:
@@ -221,7 +224,7 @@ Split a log file into multiple files based on the date at the start of each line
 chronological order.  
 
 The date format at the start of each line must have a fixed length and can be specified using the `-f` option  
-(default: "%s"). Processing stops if a date cannot be parsed.
+(default: "%s"). If a date cannot be parsed, that line will be reported and skipped.
 
 For each unique date found in the input file, a new output file will be created.  The output files will be named using 
 the specified basename (default: "%s") and the date format provided with the `-p` option (default: "%s").
